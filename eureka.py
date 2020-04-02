@@ -2,11 +2,7 @@
 
 from hashlib import sha3_512
 import time
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
-import cryptography.hazmat.backends.openssl.rsa as key
+import security
 
 
 class Block:
@@ -117,16 +113,7 @@ class BlockChain:
             proof_of_work += 1
         return proof_of_work
 
-    def add_data(self, by: str, to: str, amount: int, user_key: key._RSAPrivateKey):
-        sign_amount = b"{amount}"
-        signature = user_key.sign(
-            sign_amount,
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA512()),
-                salt_length=padding.PSS.MAX_LENGTH
-            ),
-            hashes.SHA512()
-        )
+    def add_data(self, by: str, to: str, amount: int, signature: str):
         self.current_data.append({
             'sender': by,
             'recipient': to,
@@ -142,7 +129,7 @@ class BlockChain:
         :return:
         """
         self.add_data(by=details_of_miner['sender'], to=details_of_miner['recipient'],
-                      amount=details_of_miner['quantity'], user_key=details_of_miner['user_key'])
+                      amount=details_of_miner['quantity'], signature=details_of_miner['user_key'])
         proof_of_work = self.find_proof(self.latest_block.proof_of_work)
         hash_value = self.latest_block.get_hash
         temp_block = self.make_a_block(proof_of_work, hash_value)
@@ -171,10 +158,18 @@ print("Blockchain initialized")
 your_name = input("Enter Sender's Name: ")
 their_name = input("Enter Recipient's Name: ")
 money_paid = int(input("Enter Amount to be Paid: "))
-your_sign = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=2048,
-    backend=default_backend())
+if_default_sign = input("Want me to make a default digital signature for you? ")
+if if_default_sign == 'yes':
+    pub_key = security.generate_rsa_key("default_key_file")
+    your_sign = security.make_your_signature(your_name, "default_key_file_private_key.txt")
+    with open('default_digital_signature.txt', 'w') as file:
+        file.write(your_sign)
+    print("Saved a default private key for your digital signature in default_key_file_private_key.txt, "
+          "also saved a default digital signature with {} as your name in default_digital_signature.txt, "
+          "your public key is {}".format(your_name, pub_key))
+else:
+    file_path = input("Enter the path of the file containing your digital signature: ")
+    your_sign = open(file_path, 'r').readlines()[0]
 
 blockchain.block_mining(
     details_of_miner={
