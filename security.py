@@ -179,7 +179,7 @@ def make_your_signature(sign_name: str, private_key: tuple, block_size: int = _D
     return "{}_{}_{}".format(len(sign_name), block_size, ', '.join(signature))
 
 
-def decode_their_signature(digital_signature: str, public_key: tuple) -> str:
+def decode_their_signature(digital_signature: str, public_key: str) -> str:
     """
     decode digital signature based on the public key provided (opposite of make_your_signature() function
     :param digital_signature: digital signature (expects signature in the format made by make_your_signature()) (str)
