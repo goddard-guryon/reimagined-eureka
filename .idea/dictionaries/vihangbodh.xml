@@ -11,11 +11,16 @@
       <w>hmmmm</w>
       <w>keyline</w>
       <w>keysize</w>
+      <w>merkle</w>
+      <w>mongo</w>
+      <w>mongoengine</w>
       <w>primality</w>
       <w>priv</w>
       <w>pseudocode</w>
+      <w>pymongo</w>
       <w>readlines</w>
       <w>reimagined</w>
+      <w>upvotes</w>
       <w>wikipedia</w>
     </words>
   </dictionary>

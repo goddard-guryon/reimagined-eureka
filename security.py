@@ -329,13 +329,13 @@ def _sha_backend(text_to_hash: str, _buffer: str, _counter: int,
         _buffer = _buffer[128:]
 
     # return the hash value
-    return_val = [hex(stuff) for stuff in _initial_hashes[:_output_size]]
+    return_val = [hex(stuff)[2:] for stuff in _initial_hashes[:_output_size]]
 
     if hex_output is True:
         return_val = [int(stuff, base=16) for stuff in return_val]
         return return_val
 
-    return ''.join(return_val)
+    return ''.join(return_val) + return_val[0][0]
 
 
 def sha_512(text_to_hash: str, hex_digest: bool = False) -> str:
