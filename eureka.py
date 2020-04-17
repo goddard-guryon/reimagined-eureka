@@ -15,7 +15,7 @@ import time  # need to create a timestamp for block object
 from multiprocessing import Lock  # need this for threading in blockchain
 from pymongo import MongoClient  # need this for storing local blockchain
 from mongoengine import *   # I didn't want to use SQL as it's too generic & slow, + I haven't used MongoDB in a while
-import security  # need this for...well...everything related to cryptography
+from security import sha_512, decode_their_signature  # need this for...well...everything related to cryptography
 from typing import Union, Optional  # useful just for static code analysis
 
 
@@ -60,7 +60,7 @@ class Transaction(object):
 
         # create json object of this dictionary and get its hash
         data_json = json.dumps(transaction)
-        hash_val = security.sha_512(data_json)
+        hash_val = sha_512(data_json)
 
         # return the hash value
         return hash_val
@@ -74,7 +74,7 @@ class Transaction(object):
         :param verification_text: the original text that was encrypted as digital signature (str)
         :return: whether the given digital signature is valid (bool)
         """
-        verified = security.decode_their_signature(self.sign, self.sender) == verification_text
+        verified = decode_their_signature(self.sign, self.sender) == verification_text
         return verified
 
     def __repr__(self):
@@ -141,11 +141,11 @@ class Block(object):
 
                 # if we are at the penultimate entry, just get hash of this entry
                 if i == len(base) - 1:
-                    temp_base.append(security.sha_512(base[i]))
+                    temp_base.append(sha_512(base[i]))
 
                 # otherwise, get hash of this and the next entry merged
                 else:
-                    temp_base.append(security.sha_512(base[i] + base[i+1]))
+                    temp_base.append(sha_512(base[i] + base[i+1]))
 
             # after every iteration of the loop, the merkle base essentially becomes half
             base = temp_base
@@ -157,7 +157,7 @@ class Block(object):
     def _get_header(prev_hash: str, merkle_root: str, timestamp: float, nonce: int):
         # merge all the data into a utf-8 string and hash it
         data = prev_hash + merkle_root + "{0:0>8x}".format(int(timestamp)) + "{0:0>8x}".format(nonce)
-        data_hash = security.sha_512(data + data)
+        data_hash = sha_512(data + data)
 
         # this hash value is essentially our block header
         return data_hash
@@ -184,7 +184,7 @@ class Block(object):
 
         # create json object of this dictionary and get its hash
         data_json = json.dumps(block_data)
-        hash_val = security.sha_512(data_json)
+        hash_val = sha_512(data_json)
 
         # return the hash value
         return hash_val
@@ -199,7 +199,7 @@ class Block(object):
         return difficulty
 
     def __repr__(self):
-        return "<Block {}>".format(security.sha_512(self.header))
+        return "<Block {}>".format(sha_512(self.header))
 
     # I don't understand why I need to set this to get the @property function working but, for some reason,
     # PyCharm keeps insisting that I use this function for the @property function to work...I tried asking
