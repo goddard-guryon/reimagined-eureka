@@ -1,4 +1,4 @@
-![reimagine_eureka](https://i.stack.imgur.com/3bV8H.png)
+![reimagine_eureka](https://camo.githubusercontent.com/7b742c8a2e3244ff3f912399a87a174fb9fad2b3/68747470733a2f2f692e737461636b2e696d6775722e636f6d2f33625638482e706e67)
 # reimagined-eureka
 A homemade blockchain currency inspired by [crankycoin](https://github.com/cranklin/crankycoin/). I just made this to learn more about how cryptocurrency works and how it is implemented in code, so I never finished its node and client framework since I wouldn't consider strictly a part of the blockchain, but more like a method to make the blockchains interconnected (I could still use this as a working blockchain at my local computer, but would lack the functionality to mine blocks or broadcast/receive transactions made by other users coz there wouldn't be any)...actually, now I realize that I never even actually tested this code XD
 
