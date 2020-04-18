@@ -91,7 +91,7 @@ def generate_rsa_key(keysize: int = 1024) -> tuple:
         if euclid_gcd(key_2, (prime_1-1)*(prime_2-1)) == 1:
             break
     key_0 = mod_inverse(key_2, (prime_1-1)*(prime_2-1))
-    return key_1, key_2, key_1, key_0
+    return (key_1, key_2), (key_1, key_0)
 
 
 def make_your_signature(sign_name: str, private_key: tuple, block_size: int = _DEFAULT_BLOCK_SIZE) -> str:

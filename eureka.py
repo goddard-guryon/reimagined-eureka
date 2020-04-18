@@ -106,9 +106,15 @@ class Block(object):
         self.timestamp = timestamp
         self.nonce = nonce
 
-        # find the merkle root of the block and make the header based on this merkle root
-        self.merkle_root = self._find_merkle_root()
-        self.header = self._get_header(self.prev_hash, self.merkle_root, self.timestamp, self.nonce)
+        if self.timestamp == 0:
+            # if we're making a genesis block, don't create a header from Merkle Root
+            self.merkle_root = 0
+            self.header = 0
+        else:
+
+            # find the merkle root of the block and make the header based on this merkle root
+            self.merkle_root = self._find_merkle_root()
+            self.header = self._get_header(self.prev_hash, self.merkle_root, self.timestamp, self.nonce)
 
         # create the hash value of the block
         self.hash = self._get_hash()
@@ -163,12 +169,12 @@ class Block(object):
         return data_hash
 
     @property
-    def transactions(self) -> list:
+    def transactions(self) -> Union[Optional[None], list]:
         """
         :return: list of transactions in sorted by hash (list)
         """
         if len(self.transactions) <= 1:
-            return self.transactions
+            self.transactions = self.transactions
         base = self.transactions[0]
         transactions_sorted = sorted(self.transactions[1:], key=lambda x: x.hash)
         transactions_sorted.insert(0, base)
@@ -226,6 +232,7 @@ class BlockChain(object):
         self.block_lock = Lock()
         self.database = None
         self.initialize_database()
+        self.add_block(self.create_genesis_block())
 
     def initialize_database(self):
         # make a connection to localhost
@@ -240,6 +247,13 @@ class BlockChain(object):
         self.database = client['database']
 
         return
+
+    @staticmethod
+    def create_genesis_block():
+        genesis_transaction = Transaction(0, '0', 0, '0', 0, '0', 0)
+        transaction_hash = genesis_transaction._get_hash()
+        genesis_block = Block(0, [genesis_transaction], transaction_hash, 0, 0)
+        return genesis_block
 
     # For easy understanding of the code (coz this is what this project is all about), each main function is
     # followed by its helper functions to maintain flow of understanding
@@ -666,14 +680,16 @@ class BlockChain(object):
         # return the final reward amount
         return reward
 
-    # I'm not sure if I need these functions yet, so I'll keep their dummies here till I find their use or I'm finished
-    @staticmethod
-    def get_all_blocks_in_branch(self, branch: int):
-        pass
-
-    @staticmethod
-    def get_hashes_in_range(self, start, stop, branch=0):
-        pass
+    def __repr__(self):
+        self.prune()
+        blocks = self.database.blocks.find()
+        print("Blockchain:")
+        for block in blocks:
+            transactions = self.database.transactions.find({'block_hash': block.hash})
+            print("    ", Block(block['height'], transactions, block['prev_hash'], block['timestamp'], block['nonce']))
+            for index, tra in enumerate(transactions):
+                print("        ", Transaction(index, tra['to'], tra['amount'], tra['by'], tra['fee'],
+                                              tra['signature'], tra['timestamp']))
 
 
 # dump exceptions here
