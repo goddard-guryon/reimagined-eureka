@@ -204,7 +204,8 @@ def _sha_backend(text_to_hash: str, _buffer: str, _counter: int,
 def sha_512(text_to_hash: str, hex_digest: bool = False) -> str:
     if not text_to_hash:
         return ""
-    if type(text_to_hash) is not str:
+    if type(text_to_hash) != str:
+        text_to_hash = str(text_to_hash)
         raise TypeError("Invalid content! Please provide content in correct format for hashing!")
     _buffer = ''
     _counter = 0

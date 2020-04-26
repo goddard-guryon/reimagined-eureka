@@ -77,10 +77,10 @@ class Transaction(object):
         verified = decode_their_signature(self.sign, self.sender) == verification_text
         return verified
 
-    def __repr__(self):
+    def __str__(self):
         # a replacement for the built-in __repr__() function
         return "Transaction #{}: {} sent {} rEuk to {} (verified)".format(
-            self.index, self.sender, self.quantity, self.receiver)
+            self.index, tuple(self.sender), self.quantity, self.receiver)
 
 
 class Block(object):
@@ -102,31 +102,33 @@ class Block(object):
         # initialize the attributes
         self.height = height
         self.prev_hash = prev_hash
-        self.transactions = transactions
+        self.transactions = self.transactions(transactions)
         self.timestamp = timestamp
         self.nonce = nonce
 
         if self.timestamp == 0:
             # if we're making a genesis block, don't create a header from Merkle Root
             self.merkle_root = 0
-            self.header = 0
+            self.header = ''
+            self.hash = 'aa9527b2785b9924a275ed989f06751a505db83e67a7fc089dcd8dc7867efef7cee9378a80d18a857eeb3e47ec' \
+                        '39d5c685069b8c02a235ee7633a73aa9acd49ba'
         else:
 
             # find the merkle root of the block and make the header based on this merkle root
             self.merkle_root = self._find_merkle_root()
             self.header = self._get_header(self.prev_hash, self.merkle_root, self.timestamp, self.nonce)
+            self.hash = self._get_hash()
 
         # create the hash value of the block
-        self.hash = self._get_hash()
 
         # a little trick here, to add the attribute `hash_difficulty` to the attribute `header`
         # (which is actually an int object) to make the blockchain `hash_difficulty()` function easier
 
         # instantiate the attribute using `lambda: None`
-        self.header.hash_difficulty = lambda: None
+        # self.hash_difficulty = self.hash_difficulty
 
         # set it as attribute using `setattr(object, name, value)` method
-        setattr(self.header.hash_difficulty, 'hash_difficulty', self.hash_difficulty)
+        # setattr(self.header.hash_difficulty, 'hash_difficulty', self.hash_difficulty)
 
     def _find_merkle_root(self):
         # make sure we have enough transactions
@@ -134,7 +136,10 @@ class Block(object):
             raise InvalidTransaction(self.height, "Zero transactions in block. Please provide transactions.")
 
         # create the merkle base
-        base = [transaction.hash for transaction in self.transactions]
+        if type(self.transactions[0]) == dict:
+            base = [transaction['hash'] for transaction in self.transactions]
+        else:
+            base = [transaction.hash for transaction in self.transactions]
 
         # start creating the root
         while len(base) > 1:
@@ -160,7 +165,7 @@ class Block(object):
         return base[0]
 
     @staticmethod
-    def _get_header(prev_hash: str, merkle_root: str, timestamp: float, nonce: int):
+    def _get_header(prev_hash: str, merkle_root: str, timestamp: float, nonce: int) -> str:
         # merge all the data into a utf-8 string and hash it
         data = prev_hash + merkle_root + "{0:0>8x}".format(int(timestamp)) + "{0:0>8x}".format(nonce)
         data_hash = sha_512(data + data)
@@ -168,23 +173,42 @@ class Block(object):
         # this hash value is essentially our block header
         return data_hash
 
-    @property
-    def transactions(self) -> Union[Optional[None], list]:
+    @staticmethod
+    def transactions(transactions: list) -> list:
         """
         :return: list of transactions in sorted by hash (list)
         """
-        if len(self.transactions) <= 1:
-            self.transactions = self.transactions
-        base = self.transactions[0]
-        transactions_sorted = sorted(self.transactions[1:], key=lambda x: x.hash)
+        if len(transactions) <= 1:
+            return transactions
+        base = transactions[0]
+        if type(transactions[0]) == dict:
+            transactions_sorted = sorted(transactions[1:], key=lambda x: x['hash'])
+        else:
+            transactions_sorted = sorted(transactions[1:], key=lambda x: x.hash)
         transactions_sorted.insert(0, base)
-        self.transactions = transactions_sorted
+        return transactions_sorted
 
     def _get_hash(self) -> str:
         # create a dictionary from instance for json.dumps to work
+        if type(self.transactions[0]) == dict:
+            transactions = self.transactions
+            new = []
+            for index, transaction in enumerate(transactions):
+                new.append({'index': index,
+                            'sender': tuple(transaction['by']),
+                            'receiver': transaction['to'],
+                            'fee': transaction['fee'],
+                            'quantity': transaction['amount'],
+                            'hash': transaction['hash'],
+                            'sign': transaction['signature'],
+                            'block_hash': transaction['block_hash'],
+                            'timestamp': transaction['timestamp']})
+            transactions = new
+        else:
+            transactions = [transaction.__dict__ for transaction in self.transactions]
         block_data = {
             'height': self.height,
-            'transactions': self.transactions,
+            'transactions': transactions,
             'header': self.header
         }
 
@@ -204,17 +228,8 @@ class Block(object):
             difficulty += 1
         return difficulty
 
-    def __repr__(self):
-        return "<Block {}>".format(sha_512(self.header))
-
-    # I don't understand why I need to set this to get the @property function working but, for some reason,
-    # PyCharm keeps insisting that I use this function for the @property function to work...I tried asking
-    # on StackOverflow but apparently I've been question-banned there since my previous questions didn't
-    # collect much applause on the community (how is it my fault that my questions aren't getting upvotes?
-    # Is it not normal to ask questions that might not be relevant to a lot of people?) :/
-    @transactions.setter
-    def transactions(self, value):
-        self._transactions = value
+    def __str__(self):
+        return "<Block {}>".format(sha_512(self.header) if self.header != '' else '_Genesis')
 
 
 class BlockChain(object):
@@ -232,11 +247,12 @@ class BlockChain(object):
         self.block_lock = Lock()
         self.database = None
         self.initialize_database()
-        self.add_block(self.create_genesis_block())
+        self.create_genesis_block()
 
     def initialize_database(self):
-        # make a connection to localhost
-        client = MongoClient('mongodb://localhost:27017')
+        # make a connection to localhost (changed it from `client` to `self.client` for close_connection()
+        # noinspection PyAttributeOutsideInit
+        self.client = MongoClient('mongodb://localhost:27017')
 
         # register a connection
         # don't need to write `mongoengine.register_connection()` since I imported everything directly
@@ -244,31 +260,63 @@ class BlockChain(object):
         register_connection(alias='core', name='local_blockchain')
 
         # make the databases in this client
-        self.database = client['database']
+        self.database = self.client['database']
 
         return
 
-    @staticmethod
-    def create_genesis_block():
+    def create_genesis_block(self):
         genesis_transaction = Transaction(0, '0', 0, '0', 0, '0', 0)
-        transaction_hash = genesis_transaction._get_hash()
-        genesis_block = Block(0, [genesis_transaction], transaction_hash, 0, 0)
+        genesis_block = Block(0, [genesis_transaction], '0', 0, 0)
+
+        block_entry = self.database.blocks
+        entry_data = {'hash': genesis_block.hash,
+                      'previous_hash': genesis_block.prev_hash,
+                      'merkle_root': genesis_block.merkle_root,
+                      'height': genesis_block.height,
+                      'nonce': genesis_block.nonce,
+                      'timestamp': genesis_block.timestamp,
+                      'branch': 0}
+        _ = block_entry.insert_one(entry_data)
+
+        # add all the transactions in this block to our transaction database
+        transaction_entry = self.database.transactions
+        for transaction in genesis_block.transactions:
+            entry_data = {'hash': transaction.hash,
+                          'by': transaction.sender,
+                          'amount': transaction.quantity,
+                          'to': transaction.receiver,
+                          'fee': transaction.fee,
+                          'timestamp': transaction.timestamp,
+                          'signature': transaction.sign,
+                          'block_hash': genesis_block.hash,
+                          'branch': 0}
+            _ = transaction_entry.insert_one(entry_data)
+
+        # we update the height and hash of current branch by looking for the branch ID
+        branch_entry = self.database.branch
+        branch_data = {'current_height': genesis_block.height,
+                       'current_hash': genesis_block.header}
+        _ = branch_entry.insert_one(branch_data)
         return genesis_block
 
     # For easy understanding of the code (coz this is what this project is all about), each main function is
     # followed by its helper functions to maintain flow of understanding
 
-    def add_block(self, block: Block) -> str:
+    def add_block(self, block: Block, height=None) -> str:
         """
         Main function to add a block to the blockchain
         Needs get_current_branch(), get_height(), change_primary_branch(), get_clashing_branches(), and
         get_new_branch_id() helper functions
+        :param height:
         :param block: the block to be added (Block)
         :return: the ID of inserted block in the blockchain (str)
         """
         # check if we're adding to the tallest branch
         current_branch = self.get_current_branch(block.prev_hash)
-        current_height = self.get_height()
+        if height is None:
+            current_height = self.get_height()
+        else:
+            current_height = height
 
         # check if we're at the tallest branch
         if block.height > current_height:
@@ -285,7 +333,7 @@ class BlockChain(object):
         # after making sure we're on the correct branch, let's add the data
         # add a block to our block database
         block_entry = self.database.blocks
-        entry_data = {'hash': block.header,
+        entry_data = {'hash': block.hash,
                       'previous_hash': block.prev_hash,
                       'merkle_root': block.merkle_root,
                       'height': block.height,
@@ -298,7 +346,7 @@ class BlockChain(object):
         transaction_entry = self.database.transactions
         for transaction in block.transactions:
             entry_data = {'hash': transaction.hash,
-                          'by': transaction.sender,
+                          'by': tuple([str(x) for x in transaction.sender]),
                           'amount': transaction.quantity,
                           'to': transaction.receiver,
                           'fee': transaction.fee,
@@ -311,13 +359,15 @@ class BlockChain(object):
         # we update the height and hash of current branch by looking for the branch ID
         branch_entry = self.database.branch
         to_find = {'_id': current_branch}
-        to_update = {'current_height': block.height,
-                     'current_hash': block.header}
+        to_update = {'$set':
+                         {'current_height': block.height,
+                          'current_hash': block.header}
+                     }
         _ = branch_entry.update_one(to_find, to_update)
 
         return block_result.inserted_id
 
-    def get_current_branch(self, hash_key: str) -> Union[Optional[int], Block]:
+    def get_current_branch(self, hash_key: str) -> int:
         """
         get the block object from its hash value
         helper function for add_block()
@@ -334,8 +384,8 @@ class BlockChain(object):
         if result.count() == 0:
             return 0
 
-        # return the corresponding block
-        return result[0]
+        # return the corresponding block's branch
+        return result[0]['branch']
 
     def get_height(self) -> int:
         """
@@ -466,8 +516,8 @@ class BlockChain(object):
         max_height = [x for x in blocks_entry.find().sort('height', -1).limit(1)][0]['height']
 
         # find the IDs of all branches that have this height
-        target_branches = branch_entry.find({'current_height': {
-            '$lt': (max_height - self._SHORT_CHAIN_TOLERANCE)}})['_id']
+        target_branches = [branch['_id'] for branch in branch_entry.find({'current_height': {
+            '$lt': (max_height - self._SHORT_CHAIN_TOLERANCE)}})]
 
         # find all transactions, blocks and branches that belong to `target_branches`
         tran_block_query = {'branch': {'$in': target_branches}}
@@ -529,7 +579,7 @@ class BlockChain(object):
         transaction_entry = self.database.transactions
 
         # find all relevant transactions i.e. ones that are from/to given person and in given branch
-        entry_data = transaction_entry.find({'block_hash': block_hash}).sort('hash', 1)
+        entry_data = [entry for entry in transaction_entry.find({'block_hash': block_hash})]
 
         # convert all those entries into Transaction() objects
         for entry in entry_data:
@@ -539,7 +589,7 @@ class BlockChain(object):
                 amount=entry['amount'],
                 by=entry['by'],
                 fee=entry['fee'],
-                sign=entry['sign'],
+                sign=entry['signature'],
                 timestamp=entry['timestamp'],
             ))
 
@@ -680,16 +730,34 @@ class BlockChain(object):
         # return the final reward amount
         return reward
 
+    def close_connection(self) -> bool:
+        """
+        Main function that closes the MongoDB connection established in init_database() function
+        :return: whether all databases have been cleared and the connection has been closed (bool)
+        """
+        # drop all databases
+        blocks_cleared = self.database.blocks.drop()
+        transactions_cleared = self.database.transactions.drop()
+        branch_cleared = self.database.branch.drop()
+
+        # close the connection
+        connection_closed = self.client.close()
+
+        # return the status
+        return blocks_cleared and transactions_cleared and branch_cleared and connection_closed
+
     def __repr__(self):
         self.prune()
         blocks = self.database.blocks.find()
-        print("Blockchain:")
+        data = []
         for block in blocks:
-            transactions = self.database.transactions.find({'block_hash': block.hash})
-            print("    ", Block(block['height'], transactions, block['prev_hash'], block['timestamp'], block['nonce']))
-            for index, tra in enumerate(transactions):
-                print("        ", Transaction(index, tra['to'], tra['amount'], tra['by'], tra['fee'],
-                                              tra['signature'], tra['timestamp']))
+            transactions = [x for x in self.database.transactions.find({'block_hash': block['hash']})]
+            data.append("    " + Block(block['height'], transactions, block['previous_hash'],
+                                       block['timestamp'], block['nonce']).__str__() + '\n')
+            transactions = self.get_transactions_in_block(block['hash'])
+            for transaction in transactions:
+                data.append("        " + transaction.__str__() + '\n')
+        return data
 
 
 # dump exceptions here
